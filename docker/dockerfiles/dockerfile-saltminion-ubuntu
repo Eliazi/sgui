@@ -1,0 +1,36 @@
+FROM ubuntu:24.04
+
+LABEL maintainer="Erwin Dondorp <saltgui@dondorp.com>"
+LABEL name=salt-minion
+LABEL project="SaltGUI testing"
+LABEL version=3007.4
+
+ENV SALT_VERSION=3007.4
+ENV DEBIAN_FRONTEND=noninteractive
+
+# make download possible, make encrypted password generation possible
+RUN apt-get update
+RUN apt-get install --yes --no-install-recommends curl openssl adduser
+
+# add a user for the frontend salt:salt
+RUN adduser salt
+RUN usermod -s /bin/bash -p "$(openssl passwd -1 salt)" salt
+
+# install salt-minion
+# not using repo, so must explicitly do all packages
+RUN curl -k -L -o salt-common_${SALT_VERSION}.deb https://packages.broadcom.com/artifactory/saltproject-deb/pool/salt-common_${SALT_VERSION}_amd64.deb
+RUN curl -k -L -o salt-minion_${SALT_VERSION}.deb https://packages.broadcom.com/artifactory/saltproject-deb/pool/salt-minion_${SALT_VERSION}_amd64.deb
+RUN apt install --yes --no-install-recommends ./salt-common_${SALT_VERSION}.deb ./salt-minion_${SALT_VERSION}.deb
+
+# cleanup temporary files
+RUN rm -rf /var/lib/apt/lists/* *.deb \
+  && apt-get -y autoremove \
+  && apt-get clean
+
+# copy the minion configuration
+COPY ./conf/minion /etc/salt/minion
+
+ENV CRYPTOGRAPHY_OPENSSL_NO_LEGACY=true
+
+# define main container command
+CMD ["/usr/bin/salt-minion"]
